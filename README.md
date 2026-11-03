@@ -1,30 +1,17 @@
-# Frontend — GPC-Dengue
+# Frontend — Herramienta para medir Adherencia a Dengue
 
-Interfaz web (React 18 + TypeScript + Vite) para la API [APIDuengue](../APIDuengue).
+Interfaz (React 18 + TypeScript + Vite) de la API [APIDuengue](../APIDuengue). Diseño en `DESIGN.md`,
+producto en `PRODUCT.md`, contexto para desarrollo en `CLAUDE.md`.
 
 ## Ejecutar (desarrollo)
 
-1. Levantar la API (en `../APIDuengue`):
-   ```bash
-   .venv\Scripts\python.exe -m uvicorn app.main:app --reload
-   ```
-2. Levantar el frontend:
-   ```bash
-   npm ci          # solo la primera vez (versiones exactas del package-lock.json)
-   npm run dev
-   ```
-3. Abrir http://localhost:5173
+1. API (en `../APIDuengue`): `.venv\Scripts\python.exe -m uvicorn app.main:app --reload`
+2. Frontend: `npm ci` (solo la primera vez) y `npm run dev` → http://localhost:5173
 
-En desarrollo, Vite reenvía las peticiones a `/v1` hacia `http://127.0.0.1:8000` (ver `vite.config.ts`),
-así que no hace falta CORS. Para servir el build (`npm run build` → `dist/`) desde otro origen, la API
-necesitará `CORSMiddleware`.
+Vite reenvía `/v1` a `http://127.0.0.1:8000` (ver `vite.config.ts`). Para verlo servido por la API (como
+en el .exe) haga `npm run build`: FastAPI sirve `dist/` en http://127.0.0.1:8000.
 
-## Estructura
+## Pantallas
 
-```
-src/
-├── main.tsx     # monta <App /> en #root
-├── App.tsx      # pantalla inicial: estado de la API, tareas en ejecución, modelos LLM vinculados
-├── api.ts       # cliente de la API (tipos + fetch)
-└── index.css    # estilos (tema oscuro)
-```
+Bienvenida (primera vez) · Crear tarea · Tareas en ejecución · Tareas pendientes · Detalle / Evaluación
+final · Modelos de IA. Rutas con `#/` (hash router).

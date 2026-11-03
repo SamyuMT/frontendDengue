@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Artefactos de las skills de diseño (capturas del inspector)
+.taste-skill/
+.impeccable/review/
