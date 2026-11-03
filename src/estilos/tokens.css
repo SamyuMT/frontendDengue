@@ -1,0 +1,76 @@
+/* Tokens del sistema (ver DESIGN.md). Base: Figma «HerramientaEvalucionDengue». */
+:root {
+  /* Superficies */
+  --fondo: #f7f2fa;
+  --superficie: #ffffff;
+  --contenedor: #f3edf7;
+  --contenedor-fuerte: #ece5f2;
+  --borde-suave: #e6e0e9;
+  --borde: #cac4d0;
+
+  /* Texto */
+  --texto: #1d1b20;
+  --texto-2: #49454f;
+  --texto-3: #616161;
+  --texto-deshabilitado: #a5a5a5;
+  --superficie-deshabilitada: #f6f6f6;
+
+  /* Marca y datos */
+  --primario: #6750a4;
+  --primario-hover: #5a4596;
+  --primario-presionado: #4f3c86;
+  --seleccion: #e8def8;
+  --acento: #d9cff2;
+
+  /* Niveles (siempre con texto + ícono) */
+  --bajo-fondo: #fbede9;
+  --bajo-texto: #9b3e32;
+  --medio-fondo: #fbf3dc;
+  --medio-texto: #805c12;
+  --alto-fondo: #eaf4ee;
+  --alto-texto: #27664c;
+
+  /* Estados */
+  --error: #b3261e;
+  --error-fondo: #fbede9;
+  --destructivo: #c83232;
+  --exito: #27664c;
+  --velo: rgb(29 27 32 / 0.4);
+
+  /* Tipografía */
+  --fuente: "Poppins", system-ui, sans-serif;
+  --t-resultado: 2.375rem;  /* 38 */
+  --t-titulo: 1.5625rem;    /* 25 */
+  --t-seccion: 1.125rem;    /* 18 */
+  --t-subtitulo: 0.9375rem; /* 15 */
+  --t-cuerpo: 0.875rem;     /* 14 */
+  --t-meta: 0.75rem;        /* 12 */
+
+  /* Espaciado (base 4) */
+  --e-1: 4px;
+  --e-2: 8px;
+  --e-3: 12px;
+  --e-4: 16px;
+  --e-5: 20px;
+  --e-6: 24px;
+  --e-8: 32px;
+  --e-10: 40px;
+  --e-12: 48px;
+
+  /* Forma */
+  --r-hoja: 28px;
+  --r-panel: 16px;
+  --r-control: 12px;
+  --r-pastilla: 999px;
+  --sombra-flotante: 0 12px 32px rgb(29 27 32 / 0.14), 0 2px 6px rgb(29 27 32 / 0.06);
+
+  /* Movimiento */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --d-rapida: 120ms;
+  --d-media: 200ms;
+  --d-lenta: 400ms;
+
+  --ancho-lateral: 240px;
+  --ancho-hoja: 960px;
+}
