@@ -86,7 +86,11 @@ export function nivelDe(valor: number): Nivel {
 export const nombreTarea = (t: { nombre: string | null; creada: string }) => t.nombre || `Lote del ${fechaDia(t.creada)}`;
 
 /** Proveedor legible a partir de la base_url de un modelo vinculado. */
-export function proveedor(modelo: Pick<ModeloLLM, "base_url">): { nombre: string; local: boolean } {
+const NOMBRE_PROVEEDOR: Record<string, string> = { openai: "OpenAI", deepseek: "DeepSeek", anthropic: "Anthropic" };
+
+export function proveedor(modelo: Pick<ModeloLLM, "base_url"> & Partial<Pick<ModeloLLM, "proveedor" | "tipo">>): { nombre: string; local: boolean } {
+  if (modelo.proveedor && NOMBRE_PROVEEDOR[modelo.proveedor]) return { nombre: NOMBRE_PROVEEDOR[modelo.proveedor], local: false };
+  if (modelo.tipo === "anthropic") return { nombre: "Anthropic", local: false };
   const url = modelo.base_url ?? "";
   if (!url) return { nombre: "OpenAI", local: false };
   if (/localhost|127\.0\.0\.1|0\.0\.0\.0/.test(url)) {

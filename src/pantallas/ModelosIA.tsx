@@ -1,126 +1,56 @@
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { api, type ModeloLLM } from "../api.ts";
+import { api, type ModeloDisponible, type ModeloLLM, type Proveedor } from "../api.ts";
 import { Boton } from "../componentes/Boton.tsx";
 import { Dialogo } from "../componentes/Dialogo.tsx";
 import { Aviso, Hoja, Vacio } from "../componentes/Hoja.tsx";
 import { Icono } from "../componentes/Icono.tsx";
 import { useApp } from "../ContextoApp.tsx";
-import { proveedor } from "../datos/formato.ts";
+import { proveedor as proveedorDe } from "../datos/formato.ts";
 
-interface Plantilla {
-  id: string;
-  nombre: string;
-  local: boolean;
-  alias: string;
-  modelo: string;
-  base_url: string;
-  api_key_env: string;
-  ayuda: string;
-}
+const AYUDA_LLAVE: Record<string, string> = {
+  openai: "Se crea en platform.openai.com → API keys.",
+  deepseek: "Se crea en platform.deepseek.com → API keys.",
+  anthropic: "Se crea en console.anthropic.com → API keys.",
+};
 
-const PLANTILLAS: Plantilla[] = [
-  { id: "openai", nombre: "OpenAI", local: false, alias: "gpt4o-mini", modelo: "gpt-4o-mini", base_url: "", api_key_env: "OPENAI_API_KEY", ayuda: "Llave en platform.openai.com → API keys." },
-  { id: "deepseek", nombre: "DeepSeek", local: false, alias: "deepseek", modelo: "deepseek-chat", base_url: "https://api.deepseek.com", api_key_env: "DEEPSEEK_API_KEY", ayuda: "Llave en platform.deepseek.com." },
-  { id: "gemini", nombre: "Google Gemini", local: false, alias: "gemini-flash", modelo: "gemini-2.0-flash", base_url: "https://generativelanguage.googleapis.com/v1beta/openai/", api_key_env: "GEMINI_API_KEY", ayuda: "Llave en aistudio.google.com." },
-  { id: "anthropic", nombre: "Anthropic", local: false, alias: "claude", modelo: "claude-sonnet-5-5", base_url: "https://api.anthropic.com/v1/", api_key_env: "ANTHROPIC_API_KEY", ayuda: "Llave en console.anthropic.com." },
-  { id: "ollama", nombre: "Ollama", local: true, alias: "ollama-llama", modelo: "llama3.1", base_url: "http://localhost:11434/v1", api_key_env: "", ayuda: "Ollama debe estar abierto y con el modelo descargado (ollama pull …)." },
-  { id: "lmstudio", nombre: "LM Studio", local: true, alias: "lmstudio", modelo: "", base_url: "http://localhost:1234/v1", api_key_env: "", ayuda: "Encienda el servidor local en LM Studio y copie el identificador del modelo cargado." },
-  { id: "otro", nombre: "Otro compatible", local: false, alias: "", modelo: "", base_url: "", api_key_env: "", ayuda: "Cualquier servicio compatible con la API de OpenAI." },
-];
+// Sugeridos arriba de la lista (si la llave los tiene disponibles)
+const SUGERIDOS: Record<string, string[]> = {
+  openai: ["gpt-6-astra", "gpt-6.1-sol", "gpt-5.4-mini", "gpt-4o-mini"],
+  deepseek: ["deepseek-chat"],
+  anthropic: ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"],
+};
 
-const NOMBRE_VALIDO = /^[\w.-]+$/;
-
-interface Formulario {
-  nombre: string;
-  modelo: string;
-  base_url: string;
-  api_key_env: string;
-  api_key: string;
-  timeout_s: number;
-}
-
-const vacio = (p: Plantilla): Formulario => ({
-  nombre: p.alias,
-  modelo: p.modelo,
-  base_url: p.base_url,
-  api_key_env: p.api_key_env,
-  api_key: "",
-  timeout_s: p.local ? 120 : 60,
-});
-
-type Prueba = { estado: "probando" } | { estado: "ok"; segundos: number; respuesta: string } | { estado: "error"; mensaje: string };
+type Prueba = { estado: "probando" } | { estado: "ok"; segundos: number } | { estado: "error"; mensaje: string };
 
 export function ModelosIA() {
   const { modelos, recargar } = useApp();
+  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [abierto, setAbierto] = useState(modelos.length === 0);
-  const [plantilla, setPlantilla] = useState<Plantilla>(PLANTILLAS[1]);
-  const [form, setForm] = useState<Formulario>(vacio(PLANTILLAS[1]));
-  const [editando, setEditando] = useState<string | null>(null);
-  const [guardando, setGuardando] = useState(false);
-  const [intento, setIntento] = useState(false);
+  const [elegido, setElegido] = useState<Proveedor | null>(null);
   const [pruebas, setPruebas] = useState<Record<string, Prueba>>({});
   const [porEliminar, setPorEliminar] = useState<ModeloLLM | null>(null);
   const [eliminando, setEliminando] = useState(false);
 
-  const usaLlave = !plantilla.local && plantilla.id !== "otro" ? true : Boolean(form.api_key_env);
-  const errores = {
-    nombre: !form.nombre ? "Escriba un nombre corto." : !NOMBRE_VALIDO.test(form.nombre) ? "Solo letras, números, guiones y puntos, sin espacios." : null,
-    modelo: !form.modelo.trim() ? "Escriba el identificador del modelo." : null,
-    base_url: plantilla.id !== "openai" && !form.base_url.trim() ? "Escriba la URL del servicio." : null,
-    api_key_env: form.api_key && !form.api_key_env ? "Indique en qué variable guardar la llave." : null,
-  };
-  const valido = !Object.values(errores).some(Boolean);
-  const error = (campo: keyof typeof errores) => (intento ? errores[campo] : null);
+  const cargarProveedores = () =>
+    api
+      .proveedores()
+      .then((lista) => {
+        setProveedores(lista);
+        setElegido((actual) => (actual ? (lista.find((p) => p.id === actual.id) ?? null) : (lista.find((p) => p.habilitado) ?? null)));
+      })
+      .catch(() => setProveedores([]));
 
-  function elegirPlantilla(p: Plantilla) {
-    setPlantilla(p);
-    setForm(vacio(p));
-    setEditando(null);
-    setIntento(false);
-  }
-
-  function editar(m: ModeloLLM) {
-    const p = proveedor(m);
-    setPlantilla(PLANTILLAS.find((x) => x.nombre === p.nombre) ?? PLANTILLAS[PLANTILLAS.length - 1]);
-    setForm({ nombre: m.nombre, modelo: m.modelo, base_url: m.base_url ?? "", api_key_env: m.api_key_env ?? "", api_key: "", timeout_s: m.timeout_s });
-    setEditando(m.nombre);
-    setAbierto(true);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  async function guardar() {
-    setIntento(true);
-    if (!valido) return;
-    setGuardando(true);
-    try {
-      await api.vincularModelo({
-        nombre: form.nombre,
-        modelo: form.modelo.trim(),
-        base_url: form.base_url.trim() || null,
-        api_key_env: form.api_key_env.trim() || null,
-        api_key: form.api_key.trim() || null,
-        timeout_s: form.timeout_s,
-      });
-      await recargar();
-      toast.success(editando ? "Modelo actualizado" : "Modelo vinculado", { description: "Pruébelo para confirmar que responde." });
-      setAbierto(false);
-      setEditando(null);
-      setIntento(false);
-      setForm(vacio(plantilla));
-    } catch (e) {
-      toast.error("No se pudo guardar el modelo", { description: e instanceof Error ? e.message : undefined });
-    } finally {
-      setGuardando(false);
-    }
-  }
+  useEffect(() => {
+    void cargarProveedores();
+  }, []);
 
   async function probar(m: ModeloLLM) {
     setPruebas((p) => ({ ...p, [m.nombre]: { estado: "probando" } }));
     try {
       const r = await api.probarModelo(m.nombre);
-      setPruebas((p) => ({ ...p, [m.nombre]: { estado: "ok", segundos: r.tiempo_segundos, respuesta: r.respuesta } }));
+      setPruebas((p) => ({ ...p, [m.nombre]: { estado: "ok", segundos: r.tiempo_segundos } }));
     } catch (e) {
       setPruebas((p) => ({ ...p, [m.nombre]: { estado: "error", mensaje: e instanceof Error ? e.message : "No respondió." } }));
     }
@@ -141,9 +71,6 @@ export function ModelosIA() {
     }
   }
 
-  const cambiar = (campo: keyof Formulario) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm((f) => ({ ...f, [campo]: campo === "timeout_s" ? Number(e.target.value) : e.target.value }));
-
   return (
     <Hoja
       ancha
@@ -152,7 +79,7 @@ export function ModelosIA() {
       lateral={
         !abierto && (
           <Boton variante="principal" icono="mas" onClick={() => setAbierto(true)}>
-            Vincular modelo
+            Vincular modelos
           </Boton>
         )
       }
@@ -168,74 +95,45 @@ export function ModelosIA() {
           >
             <div className="panel-vincular__interior">
               <div className="panel-vincular__cabecera">
-                <h2 className="seccion__titulo">{editando ? `Editar «${editando}»` : "Vincular un modelo"}</h2>
+                <h2 className="seccion__titulo">Vincular modelos de un proveedor</h2>
                 <button type="button" className="icono-boton" aria-label="Cerrar" onClick={() => setAbierto(false)}>
                   <Icono nombre="cerrar" tamano={18} />
                 </button>
               </div>
 
-              {!editando && (
-                <div className="plantillas" role="radiogroup" aria-label="Proveedor">
-                  {PLANTILLAS.map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={plantilla.id === p.id}
-                      className={`plantilla${plantilla.id === p.id ? " plantilla--elegida" : ""}`}
-                      onClick={() => elegirPlantilla(p)}
-                    >
-                      <Icono nombre={p.local ? "equipo" : "nube"} tamano={16} />
-                      <span className="plantilla__nombre">{p.nombre}</span>
-                      <span className="plantilla__tipo">{p.local ? "En este equipo" : p.id === "otro" ? "Personalizado" : "En internet"}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              <p className="campo__ayuda">{plantilla.ayuda}</p>
-              {!plantilla.local && (
-                <p className="panel-vincular__etica">
-                  <Icono nombre="info" tamano={15} />
-                  Con un proveedor en internet, el texto de las HC (ya anonimizado) sale del equipo hacia ese servicio.
-                </p>
-              )}
+              <div className="plantillas" role="radiogroup" aria-label="Proveedor">
+                {proveedores.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={elegido?.id === p.id}
+                    disabled={!p.habilitado}
+                    className={`plantilla${elegido?.id === p.id ? " plantilla--elegida" : ""}`}
+                    onClick={() => setElegido(p)}
+                  >
+                    <Icono nombre={p.base_url?.includes("localhost") ? "equipo" : "nube"} tamano={16} />
+                    <span className="plantilla__nombre">{p.nombre}</span>
+                    <span className="plantilla__tipo">
+                      {!p.habilitado ? "Próximamente" : p.api_key_configurada ? "Llave guardada" : "En internet"}
+                    </span>
+                  </button>
+                ))}
+              </div>
 
-              <form
-                className="rejilla-form"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void guardar();
-                }}
-              >
-                <Campo etiqueta="Nombre en la herramienta" ayuda="Así aparecerá en la lista al crear una tarea." error={error("nombre")}>
-                  <input className="entrada" value={form.nombre} onChange={cambiar("nombre")} disabled={Boolean(editando)} placeholder="deepseek" spellCheck={false} />
-                </Campo>
-                <Campo etiqueta="Identificador del modelo" ayuda="El nombre exacto que usa el proveedor." error={error("modelo")}>
-                  <input className="entrada" value={form.modelo} onChange={cambiar("modelo")} placeholder="deepseek-chat" spellCheck={false} />
-                </Campo>
-                <Campo etiqueta="URL del servicio" ayuda={plantilla.id === "openai" ? "Vacía = OpenAI." : "Debe terminar donde empieza /chat/completions."} error={error("base_url")} ancho>
-                  <input className="entrada cifra" value={form.base_url} onChange={cambiar("base_url")} placeholder="https://…" spellCheck={false} />
-                </Campo>
-                {usaLlave && (
-                  <>
-                    <Campo etiqueta="Variable de la llave" ayuda="Nombre con el que se guarda en el archivo .env." error={error("api_key_env")}>
-                      <input className="entrada cifra" value={form.api_key_env} onChange={cambiar("api_key_env")} placeholder="DEEPSEEK_API_KEY" spellCheck={false} />
-                    </Campo>
-                    <Campo etiqueta="Llave de API" ayuda={editando ? "Déjela vacía para conservar la actual." : "Se guarda solo en el .env de este equipo; nunca se vuelve a mostrar."}>
-                      <input className="entrada" type="password" autoComplete="off" value={form.api_key} onChange={cambiar("api_key")} placeholder="sk-…" />
-                    </Campo>
-                  </>
-                )}
-                <Campo etiqueta="Tiempo máximo de respuesta" ayuda="Segundos antes de intentar con otro modelo.">
-                  <input className="entrada cifra" type="number" min={5} max={600} value={form.timeout_s} onChange={cambiar("timeout_s")} />
-                </Campo>
-                <div className="rejilla-form__acciones">
-                  <Boton onClick={() => setAbierto(false)}>Cancelar</Boton>
-                  <Boton variante="principal" type="submit" cargando={guardando}>
-                    {editando ? "Guardar cambios" : "Vincular modelo"}
-                  </Boton>
-                </div>
-              </form>
+              {elegido && (
+                <FormProveedor
+                  key={elegido.id}
+                  proveedor={elegido}
+                  vinculados={modelos}
+                  onVinculados={async (cantidad) => {
+                    await Promise.all([recargar(), cargarProveedores()]);
+                    toast.success(cantidad === 1 ? "Modelo vinculado" : `${cantidad} modelos vinculados`, {
+                      description: "Use «Probar» para confirmar que responden.",
+                    });
+                  }}
+                />
+              )}
             </div>
           </motion.section>
         )}
@@ -243,7 +141,14 @@ export function ModelosIA() {
 
       {modelos.length === 0 ? (
         !abierto && (
-          <Vacio titulo="No hay modelos vinculados" accion={<Boton variante="principal" icono="mas" onClick={() => setAbierto(true)}>Vincular modelo</Boton>}>
+          <Vacio
+            titulo="No hay modelos vinculados"
+            accion={
+              <Boton variante="principal" icono="mas" onClick={() => setAbierto(true)}>
+                Vincular modelos
+              </Boton>
+            }
+          >
             Sin al menos un modelo no se pueden evaluar historias clínicas.
           </Vacio>
         )
@@ -261,20 +166,19 @@ export function ModelosIA() {
             </thead>
             <tbody>
               {modelos.map((m) => {
-                const p = proveedor(m);
+                const p = proveedorDe(m);
                 const prueba = pruebas[m.nombre];
                 return (
                   <tr key={m.nombre}>
                     <td>
                       <span className="tabla__titulo">{m.nombre}</span>
-                      <span className="tabla__meta cifra">{m.modelo}</span>
+                      {m.modelo !== m.nombre && <span className="tabla__meta cifra">{m.modelo}</span>}
                     </td>
                     <td>
                       <span className="proveedor">
                         <Icono nombre={p.local ? "equipo" : "nube"} tamano={15} />
                         {p.nombre}
                       </span>
-                      <span className="tabla__meta">{p.local ? "En este equipo" : "En internet"}</span>
                     </td>
                     <td>
                       {!m.api_key_env ? (
@@ -292,7 +196,8 @@ export function ModelosIA() {
                       {prueba?.estado === "probando" && <span className="tabla__meta-celda">Consultando…</span>}
                       {prueba?.estado === "ok" && (
                         <span className="prueba prueba--ok">
-                          <Icono nombre="check" tamano={15} /> Respondió en <span className="cifra">{prueba.segundos.toLocaleString("es-CO", { maximumFractionDigits: 1 })} s</span>
+                          <Icono nombre="check" tamano={15} /> Respondió en{" "}
+                          <span className="cifra">{prueba.segundos.toLocaleString("es-CO", { maximumFractionDigits: 1 })} s</span>
                         </span>
                       )}
                       {prueba?.estado === "error" && (
@@ -304,9 +209,6 @@ export function ModelosIA() {
                     <td className="tabla__acciones">
                       <button type="button" className="enlace" disabled={prueba?.estado === "probando"} onClick={() => void probar(m)}>
                         Probar
-                      </button>
-                      <button type="button" className="enlace" onClick={() => editar(m)}>
-                        Editar
                       </button>
                       <button type="button" className="enlace enlace--peligro" onClick={() => setPorEliminar(m)}>
                         Quitar
@@ -346,20 +248,200 @@ export function ModelosIA() {
         onCerrar={() => setPorEliminar(null)}
       >
         <p>
-          «{porEliminar?.nombre}» dejará de estar disponible para nuevas tareas. La llave sigue guardada en el .env por si lo vuelve a
-          vincular.
+          «{porEliminar?.nombre}» dejará de estar disponible para nuevas tareas. La llave del proveedor sigue guardada en el .env
+          para sus otros modelos.
         </p>
       </Dialogo>
     </Hoja>
   );
 }
 
-function Campo({ etiqueta, ayuda, error, ancho, children }: { etiqueta: string; ayuda?: string; error?: string | null; ancho?: boolean; children: React.ReactNode }) {
+/** Llave → consultar modelos disponibles → marcar uno o varios → vincular con la misma llave. */
+function FormProveedor({
+  proveedor,
+  vinculados,
+  onVinculados,
+}: {
+  proveedor: Proveedor;
+  vinculados: ModeloLLM[];
+  onVinculados: (cantidad: number) => Promise<void>;
+}) {
+  const [cambiarLlave, setCambiarLlave] = useState(!proveedor.api_key_configurada);
+  const [llave, setLlave] = useState("");
+  const [baseUrl, setBaseUrl] = useState(proveedor.base_url ?? "");
+  const [avanzado, setAvanzado] = useState(false);
+  const [disponibles, setDisponibles] = useState<ModeloDisponible[] | null>(null);
+  const [consultando, setConsultando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [filtro, setFiltro] = useState("");
+  const [marcados, setMarcados] = useState<Set<string>>(new Set());
+  const [vinculando, setVinculando] = useState(false);
+
+  const yaVinculados = useMemo(
+    () => new Set(vinculados.filter((m) => m.proveedor === proveedor.id || proveedorDe(m).nombre === proveedor.nombre).map((m) => m.modelo)),
+    [vinculados, proveedor],
+  );
+
+  const usarGuardada = proveedor.api_key_configurada && !cambiarLlave;
+  const puedeConsultar = usarGuardada || llave.trim().length > 0;
+
+  async function consultar() {
+    setConsultando(true);
+    setError(null);
+    setDisponibles(null);
+    setMarcados(new Set());
+    try {
+      const lista = await api.modelosDisponibles(proveedor.id, usarGuardada ? undefined : llave.trim(), baseUrl.trim() || undefined);
+      const orden = SUGERIDOS[proveedor.id] ?? [];
+      lista.sort((a, b) => {
+        const ia = orden.indexOf(a.id);
+        const ib = orden.indexOf(b.id);
+        if (ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+        return b.id.localeCompare(a.id); // Lo más nuevo primero (ids con versión mayor)
+      });
+      setDisponibles(lista);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo consultar el proveedor.");
+    } finally {
+      setConsultando(false);
+    }
+  }
+
+  async function vincular() {
+    if (marcados.size === 0) return;
+    setVinculando(true);
+    setError(null);
+    try {
+      const creados = await api.vincularVarios(proveedor.id, {
+        modelos: [...marcados],
+        api_key: usarGuardada ? null : llave.trim(),
+        base_url: baseUrl.trim() && baseUrl.trim() !== (proveedor.base_url ?? "") ? baseUrl.trim() : null,
+        timeout_s: 60,
+      });
+      setMarcados(new Set());
+      setLlave("");
+      setCambiarLlave(false);
+      await onVinculados(creados.length);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudieron vincular.");
+    } finally {
+      setVinculando(false);
+    }
+  }
+
+  const visibles = (disponibles ?? []).filter((m) => `${m.id} ${m.nombre}`.toLowerCase().includes(filtro.trim().toLowerCase()));
+  const alternar = (id: string) =>
+    setMarcados((actual) => {
+      const nuevo = new Set(actual);
+      if (nuevo.has(id)) nuevo.delete(id);
+      else nuevo.add(id);
+      return nuevo;
+    });
+
   return (
-    <label className={`campo${ancho ? " campo--ancho" : ""}`}>
-      <span className="campo__etiqueta">{etiqueta}</span>
-      {children}
-      {error ? <span className="campo__error">{error}</span> : ayuda && <span className="campo__ayuda">{ayuda}</span>}
-    </label>
+    <div className="form-proveedor">
+      <p className="panel-vincular__etica">
+        <Icono nombre="info" tamano={15} />
+        El texto de las HC (ya anonimizado) sale del equipo hacia {proveedor.nombre}. Una sola llave sirve para todos sus modelos.
+      </p>
+
+      <div className="campo">
+        <span className="campo__etiqueta">Llave de API de {proveedor.nombre}</span>
+        {usarGuardada ? (
+          <div className="solo-lectura solo-lectura--accion">
+            <span>
+              <Icono nombre="llave" tamano={15} /> Hay una llave guardada en el .env ({proveedor.api_key_env})
+            </span>
+            <button type="button" className="enlace" onClick={() => setCambiarLlave(true)}>
+              Usar otra llave
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="carpeta">
+              <input
+                className="entrada"
+                type="password"
+                autoComplete="off"
+                value={llave}
+                placeholder={proveedor.id === "anthropic" ? "sk-ant-…" : "sk-…"}
+                onChange={(e) => setLlave(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && puedeConsultar) void consultar();
+                }}
+              />
+              {proveedor.api_key_configurada && (
+                <Boton onClick={() => setCambiarLlave(false)}>Usar la guardada</Boton>
+              )}
+            </div>
+            <span className="campo__ayuda">
+              {AYUDA_LLAVE[proveedor.id]} Se guarda solo en el .env de este equipo y nunca se vuelve a mostrar.
+            </span>
+          </>
+        )}
+      </div>
+
+      <button type="button" className="enlace form-proveedor__avanzado" aria-expanded={avanzado} onClick={() => setAvanzado((v) => !v)}>
+        {avanzado ? "Ocultar URL del servicio" : "Cambiar URL del servicio (avanzado)"}
+      </button>
+      {avanzado && (
+        <label className="campo">
+          <span className="campo__etiqueta">URL del servicio</span>
+          <input className="entrada cifra" value={baseUrl} placeholder="Vacía = la oficial del proveedor" onChange={(e) => setBaseUrl(e.target.value)} spellCheck={false} />
+          <span className="campo__ayuda">Solo si usa un proxy o una región distinta. Vacía = la oficial.</span>
+        </label>
+      )}
+
+      <div>
+        <Boton variante={disponibles ? "secundario" : "principal"} icono="tarea" onClick={() => void consultar()} disabled={!puedeConsultar} cargando={consultando}>
+          {disponibles ? "Volver a consultar" : "Consultar modelos disponibles"}
+        </Boton>
+      </div>
+
+      {error && (
+        <Aviso tono="error" titulo="No se pudo completar">
+          {error}
+        </Aviso>
+      )}
+
+      {disponibles && (
+        <div className="disponibles">
+          <div className="disponibles__cabecera">
+            <p>
+              <strong className="cifra">{disponibles.length}</strong> modelos disponibles con esta llave · marque los que quiera usar
+            </p>
+            <input className="entrada disponibles__filtro" value={filtro} placeholder="Filtrar, p. ej. gpt-6" onChange={(e) => setFiltro(e.target.value)} />
+          </div>
+          <ul className="disponibles__lista">
+            {visibles.map((m) => {
+              const ya = yaVinculados.has(m.id);
+              const marcado = marcados.has(m.id);
+              return (
+                <li key={m.id}>
+                  <label className={`disponible${marcado ? " disponible--marcado" : ""}${ya ? " disponible--vinculado" : ""}`}>
+                    <input type="checkbox" checked={marcado || ya} disabled={ya} onChange={() => alternar(m.id)} />
+                    <span className="disponible__texto">
+                      <span className="disponible__id cifra">{m.id}</span>
+                      {m.nombre !== m.id && <span className="disponible__nombre">{m.nombre}</span>}
+                    </span>
+                    {ya ? (
+                      <span className="pastilla pastilla--neutro">Vinculado</span>
+                    ) : (
+                      (SUGERIDOS[proveedor.id] ?? []).includes(m.id) && <span className="pastilla pastilla--activo">Sugerido</span>
+                    )}
+                  </label>
+                </li>
+              );
+            })}
+            {visibles.length === 0 && <li className="disponibles__vacio">Ningún modelo coincide con «{filtro}».</li>}
+          </ul>
+          <div className="rejilla-form__acciones">
+            <Boton variante="principal" icono="mas" disabled={marcados.size === 0} cargando={vinculando} onClick={() => void vincular()}>
+              {marcados.size <= 1 ? "Vincular modelo" : `Vincular ${marcados.size} modelos`}
+            </Boton>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

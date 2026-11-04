@@ -813,6 +813,130 @@
   color: var(--error);
 }
 
+.plantilla:disabled {
+  cursor: not-allowed;
+  background: var(--superficie-deshabilitada);
+  border-style: dashed;
+}
+
+.plantilla:disabled .plantilla__nombre {
+  color: var(--texto-3);
+}
+
+.plantilla:disabled:active {
+  transform: none;
+}
+
+.form-proveedor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-4);
+  margin-top: var(--e-2);
+}
+
+.form-proveedor .solo-lectura {
+  background: var(--superficie);
+}
+
+.form-proveedor .solo-lectura span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-2);
+}
+
+.form-proveedor__avanzado {
+  align-self: flex-start;
+  font-size: 13px;
+}
+
+.disponibles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-3);
+}
+
+.disponibles__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-4);
+  color: var(--texto-2);
+}
+
+.disponibles__filtro {
+  max-width: 260px;
+  min-height: 40px;
+}
+
+.disponibles__lista {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--e-2);
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.disponible {
+  display: flex;
+  align-items: center;
+  gap: var(--e-3);
+  min-height: 52px;
+  padding: var(--e-2) var(--e-4);
+  border-radius: var(--r-control);
+  border: 1px solid var(--borde-suave);
+  background: var(--superficie);
+  cursor: pointer;
+  transition:
+    border-color var(--d-media) ease,
+    background-color var(--d-media) ease;
+}
+
+.disponible:hover {
+  border-color: var(--borde);
+}
+
+.disponible--marcado {
+  border-color: var(--primario);
+  background: #fbf8fe;
+}
+
+.disponible--vinculado {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.disponible input {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.disponible__texto {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.disponible__id {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.disponible__nombre {
+  font-size: var(--t-meta);
+  color: var(--texto-3);
+}
+
+.disponibles__vacio {
+  padding: var(--e-4);
+  color: var(--texto-3);
+}
+
 /* ---------- Bienvenida ---------- */
 .bienvenida {
   max-width: 760px;

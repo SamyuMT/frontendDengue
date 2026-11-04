@@ -120,7 +120,8 @@ export interface ModelosLocales {
 
 export interface ModeloLLM {
   nombre: string;
-  tipo: "openai_compatible";
+  tipo: "openai_compatible" | "anthropic";
+  proveedor: string | null;
   modelo: string;
   base_url: string | null;
   api_key_env: string | null;
@@ -135,6 +136,21 @@ export interface VincularModeloDatos {
   api_key_env: string | null;
   api_key?: string | null;
   timeout_s: number;
+}
+
+export interface Proveedor {
+  id: string;
+  nombre: string;
+  tipo: "openai_compatible" | "anthropic";
+  base_url: string | null;
+  api_key_env: string;
+  habilitado: boolean;
+  api_key_configurada: boolean;
+}
+
+export interface ModeloDisponible {
+  id: string;
+  nombre: string;
 }
 
 export interface RespuestaLLM {
@@ -208,6 +224,14 @@ export const api = {
   // Modelos LLM
   modelosLLM: () => pedir<ModeloLLM[]>("/v1/llm/modelos"),
   vincularModelo: (datos: VincularModeloDatos) => pedir<ModeloLLM>("/v1/llm/modelos", { metodo: "POST", cuerpo: datos }),
+  proveedores: () => pedir<Proveedor[]>("/v1/llm/proveedores"),
+  modelosDisponibles: (proveedor: string, apiKey?: string, baseUrl?: string) =>
+    pedir<ModeloDisponible[]>(`/v1/llm/proveedores/${proveedor}/modelos-disponibles`, {
+      metodo: "POST",
+      cuerpo: { api_key: apiKey || null, base_url: baseUrl || null },
+    }),
+  vincularVarios: (proveedor: string, datos: { modelos: string[]; api_key?: string | null; base_url?: string | null; timeout_s: number }) =>
+    pedir<ModeloLLM[]>(`/v1/llm/proveedores/${proveedor}/vincular`, { metodo: "POST", cuerpo: datos }),
   desvincularModelo: (nombre: string) => pedir<void>(`/v1/llm/modelos/${encodeURIComponent(nombre)}`, { metodo: "DELETE" }),
   probarModelo: (nombre: string) =>
     pedir<RespuestaLLM>("/v1/llm/consulta", {
