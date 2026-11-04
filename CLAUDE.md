@@ -66,6 +66,7 @@ schema del backend, actualizar aquí los tipos.
 | Sistema | `POST /v1/sistema/elegir-carpeta {inicial?}` → `{ruta}` (null si cancela): diálogo nativo de Windows abierto por el servidor |
 | Modelos locales | `GET /v1/modelos/locales` → `{embeddings[], embeddings_por_defecto, extractores[]}` (se relee `models/` en cada consulta) |
 | Modelos LLM | `GET /v1/llm/modelos` (sin llaves; `api_key_configurada`) · `POST /v1/llm/modelos {nombre, modelo, base_url, api_key_env, api_key?, timeout_s}` (crea o reemplaza; la llave se escribe en `.env`) · `DELETE /v1/llm/modelos/{nombre}` |
+| Proveedores | `GET /v1/llm/proveedores` · `POST /v1/llm/proveedores/{id}/modelos-disponibles {api_key?, base_url?}` · `POST /v1/llm/proveedores/{id}/vincular {modelos[], api_key?, base_url?, timeout_s}` |
 | Prueba LLM | `POST /v1/llm/consulta` (botón «Probar modelo»: el usuario acepta el costo de tokens) · `POST /v1/llm/chats` → `POST /chats/{id}/mensajes` → `GET /chats/{id}` (404 / 502 si el proveedor falla) |
 
 Datos clave para la UI:
@@ -228,10 +229,14 @@ Falta (proponer, no implementar sin permiso):
 - Probado por el usuario (diálogo de carpeta y tarea real). Ícono `public/favicon.svg` en pestaña y barra lateral.
 - Figma: página **«Desarrollo · Implementado»** (`38:8`) con las pantallas construidas, capturadas del
   front con `generate_figma_design` (capas editables en Poppins): Bienvenida `40:8`, Crear tarea `41:2`,
-  En ejecución `39:2`, Pendientes `44:2`, Evaluación final `42:2`, Modelos de IA `43:2`, nota `45:8`.
+  En ejecución `39:2`, Pendientes `44:2`, Evaluación final `42:2`, Modelos de IA `48:2` (recapturada con el flujo de proveedores), nota `45:8`.
   Para recapturar: script temporal en `index.html` + `?ruta=` con router en memoria (ver historial), sin dejarlo en el código.
 - Revisión `review-animations`: sin animar height/left/width (paneles con opacidad + y; escala con
   `transform`), entrada de pantalla 150 ms, salidas de diálogo más rápidas que las entradas.
+
+- Modelos de IA rehecha (2026-11-03): solo OpenAI, DeepSeek y Anthropic habilitados (el resto «Próximamente»);
+  llave (o la guardada) → «Consultar modelos disponibles» → marcar varios → vincular con la misma llave.
+  Ya no hay formulario manual ni «Editar».
 
 ### Pendiente
 - [ ] Reconstruir en Figma las pantallas nuevas con componentes del sistema (`components`), si se quiere
